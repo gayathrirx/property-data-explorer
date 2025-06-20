@@ -4,7 +4,6 @@ import os
 import requests
 import gradio as gr
 
-# Get the API key once when the module is loaded
 API_KEY = os.environ.get("ATTOM_API_KEY")
 
 def get_property_detail(street_address, city, state):
@@ -18,15 +17,24 @@ def get_property_detail(street_address, city, state):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException:
-        # Return None on failure to allow loops in other functions to continue
         return None
 
 def get_addresses_by_zip(zip_code):
-    """Calls the 'address' endpoint to get a list of addresses in a ZIP code."""
+    """
+    Calls the 'address' endpoint to get a list of addresses in a ZIP code.
+    Now includes a filter for Single Family Residences (SFR).
+    """
     if not API_KEY: raise gr.Error("API Key is not configured.")
     base_url = "https://api.gateway.attomdata.com/propertyapi/v1.0.0/property/address"
     headers = {"apikey": API_KEY, "Accept": "application/json"}
-    params = {'postalcode': zip_code, 'pagesize': 10} # We'll analyze the first 10 addresses
+    
+    # --- CHANGE: Added propertytype filter and kept pagesize at 100 ---
+    params = {
+        'postalcode': zip_code,
+        'propertytype': 'SFR', # Filter for Single Family Residences
+        'pagesize': 100
+    }
+    
     try:
         response = requests.get(base_url, headers=headers, params=params, timeout=15)
         response.raise_for_status()

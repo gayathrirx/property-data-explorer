@@ -2,47 +2,35 @@
 
 from transformers import pipeline
 
-print("Loading multiple AI models for ensemble analysis...")
+# --- Load a SINGLE, reliable, and powerful specialized AI Model ---
+# This model ('charles99/name-nationality-classifier') is highly popular and public.
+# It uses a BERT-based architecture, which should provide high accuracy.
+print("Loading the BERT-based name-nationality classification AI model...")
+try:
+    _nationality_classifier = pipeline("text-classification", model="charles99/name-nationality-classifier")
+    print("AI model loaded successfully.")
+except Exception as e:
+    # This provides a clearer error if the model fails to load for any reason
+    print(f"CRITICAL ERROR: Failed to load the AI model. Exception: {e}")
+    # We can create a dummy function so the app doesn't crash completely, but shows an error.
+    def _nationality_classifier(names):
+        raise RuntimeError("AI Model could not be loaded. Please check the logs.")
 
-# --- Load all three models ---
-# Each is stored in a dictionary for easy access.
-_classifiers = {
-    "baseline": pipeline("text-classification", model="matthew-so/name-nationality-classification"),
-    "bert": pipeline("text-classification", model="charles99/name-nationality-classifier"),
-    "llm": pipeline("text2text-generation", model="google/flan-t5-base")
-}
-print("All AI models loaded.")
 
-# A fixed list of categories for the LLM to ensure consistent output
-LLM_CATEGORIES = ['English', 'Russian', 'Arabic', 'Chinese', 'Italian', 'Spanish', 'Japanese', 'French', 'German', 'Dutch', 'Greek', 'Indian', 'Korean', 'Portuguese', 'Vietnamese', 'Polish', 'Czech', 'Irish']
-
-def get_ensemble_predictions(names):
+def predict_ethnicity(names):
     """
-    Gets predictions from all three models for a list of names.
-    Returns a list of dictionaries, where each dict has the predictions from all models for one name.
+    Takes a list of names and returns a list of predicted nationalities
+    using the single, reliable classifier.
     """
     if not names:
         return []
-
-    # Get predictions from the fast classifiers first
-    baseline_preds = [p['label'] for p in _classifiers["baseline"](names)]
-    bert_preds = [p['label'] for p in _classifiers["bert"](names)]
-    
-    # Get predictions from the slower LLM one by one
-    llm_preds = []
-    for name in names:
-        prompt = f"Predict the linguistic origin of the name '{name}' from this list: {', '.join(LLM_CATEGORIES)}. Respond with only one word from the list."
-        response = _classifiers["llm"](prompt, max_length=10)[0]['generated_text'].strip()
-        llm_preds.append(response if response in LLM_CATEGORIES else "Unknown")
         
-    # Combine the results
-    combined_results = []
-    for i in range(len(names)):
-        combined_results.append({
-            "name": names[i],
-            "baseline_pred": baseline_preds[i],
-            "bert_pred": bert_preds[i],
-            "llm_pred": llm_preds[i]
-        })
-        
-    return combined_results
+    try:
+        # The model expects a list of names and returns a list of dictionaries.
+        predictions = _nationality_classifier(names)
+        # We extract just the 'label' (the nationality string) from each prediction.
+        return [pred['label'] for pred in predictions]
+    except Exception as e:
+        print(f"Error during AI prediction: {e}")
+        # Return a list of "Error" strings of the same length as the input
+        return ["Error"] * len(names)

@@ -23,21 +23,22 @@ def process_property_detail_tab(street, city, state, zip_code):
     summary = f"""### Property Details for {address_info.get('oneLine', 'N/A')}\n---\n#### **Ownership & Location**\n**Owner(s):** {owner_str}\n**Parcel ID (APN):** {prop.get('identifier', {}).get('apn', 'N/A')}\n**Subdivision:** {prop.get('area', {}).get('subdName', 'N/A')}\n\n#### **Valuation & Tax**\n**Market Value:** {f'${market_value:,}' if market_value else 'N/A'}\n**Assessed Value:** {f'${assessed_value:,}' if assessed_value else 'N/A'}\n**Last Annual Tax:** {f'${tax_amount:,}' if tax_amount else 'N/A'} (Tax Year: {assessment_info.get('tax', {}).get('taxYear', 'N/A')})\n\n#### **Last Sale Information**\n**Sale Price:** {f'${sale_price:,}' if sale_price else 'N/A'}\n**Sale Date:** {sale_date if sale_date else 'N/A'}\n\n#### **Building Characteristics**\n**Property Type:** {summary_info.get('propClass', 'N/A')}\n**Year Built:** {year_built if year_built else 'N/A'}\n**Living Area:** {f'{living_sq_ft:,} sq ft' if living_sq_ft else 'N/A'}\n**Beds / Baths:** {f'{beds} Bed' if beds else 'N/A'} / {f'{baths} Bath' if baths else 'N/A'}"""
     return summary, data
 
-# --- LOGIC FOR THE SECOND UI TAB (Upgraded with a "Spinner" using 'yield') ---
+# --- LOGIC FOR THE SECOND UI TAB (Corrected to show spinner first) ---
 def process_zip_analysis_tab(zip_code, progress=gr.Progress()):
     if not zip_code:
         raise gr.Error("A ZIP code is required.")
 
-    # --- STEP 1: THE "SPINNER" ---
+    # --- STEP 1: THE "SPINNER" (This now happens FIRST) ---
     # This 'yield' happens instantly when the button is clicked.
-    # It updates the status box and clears any old results from the plot and dataframe.
     spinner_text = "Please wait... Waking up the hamsters! 🐹 (Free compute has its limits, this can take a minute.)"
+    # We clear any old results from the plot and dataframe immediately.
     yield spinner_text, None, None
 
-    # --- STEP 2: THE MAIN WORK (Progress bar appears here) ---
+    # --- STEP 2: SLOW API CALL (This happens AFTER the spinner is shown) ---
     progress(0, desc="Fetching property list from ATTOM API...")
     address_list_data = get_addresses_by_zip(zip_code)
     
+    # --- STEP 3: THE MAIN WORK (Progress bar continues here) ---
     if not address_list_data or 'property' not in address_list_data:
         yield "Could not retrieve any addresses for this ZIP code.", None, None
         return # End the function here
@@ -51,7 +52,11 @@ def process_zip_analysis_tab(zip_code, progress=gr.Progress()):
         return
 
     for i, prop in enumerate(properties):
-        progress((i / total_to_process) * 0.9, desc=f"Getting owner for property {i+1}/{total_to_process}...")
+        # Update progress relative to the full workflow
+        # Let's say getting owners is 90% of the work.
+        progress_fraction = (i / total_to_process) * 0.9
+        progress(progress_fraction, desc=f"Getting owner for property {i+1}/{total_to_process}...")
+        
         addr = prop.get('address', {})
         detail_data = get_property_detail(addr.get('line1'), addr.get('locality'), addr.get('countrySubd'))
         if detail_data and 'property' in detail_data and detail_data['property']:
@@ -79,6 +84,6 @@ def process_zip_analysis_tab(zip_code, progress=gr.Progress()):
 
     summary = f"Analysis complete. Found and analyzed {len(df)} property owners from the sample."
     
-    # --- STEP 3: THE FINAL RESULT ---
+    # --- STEP 4: THE FINAL RESULT ---
     # The final 'yield' sends all the completed data back to the UI.
     yield summary, fig, df

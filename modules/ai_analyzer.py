@@ -2,57 +2,47 @@
 
 from transformers import pipeline
 
-# --- Load the new AI Model ---
-# We now use a general-purpose, instruction-tuned model from Google.
-# The pipeline type changes to "text2text-generation".
-print("Loading Google FLAN-T5 AI model...")
-_llm_classifier = pipeline("text2text-generation", model="google/flan-t5-base")
-print("AI model loaded.")
+print("Loading multiple AI models for ensemble analysis...")
 
-# --- Define our fixed output categories ---
-# This is crucial for getting structured data back from the LLM.
-ETHNICITY_CATEGORIES = [
-    'English', 'Russian', 'Arabic', 'Chinese', 'Italian', 'Spanish', 
-    'Japanese', 'French', 'German', 'Dutch', 'Greek', 'Indian', 
-    'Korean', 'Portuguese', 'Vietnamese', 'Polish', 'Czech', 'Irish'
-]
+# --- Load all three models ---
+# Each is stored in a dictionary for easy access.
+_classifiers = {
+    "baseline": pipeline("text-classification", model="matthew-so/name-nationality-classification"),
+    "bert": pipeline("text-classification", model="charles99/name-nationality-classifier"),
+    "llm": pipeline("text2text-generation", model="google/flan-t5-base")
+}
+print("All AI models loaded.")
 
-def predict_ethnicity(names):
+# A fixed list of categories for the LLM to ensure consistent output
+LLM_CATEGORIES = ['English', 'Russian', 'Arabic', 'Chinese', 'Italian', 'Spanish', 'Japanese', 'French', 'German', 'Dutch', 'Greek', 'Indian', 'Korean', 'Portuguese', 'Vietnamese', 'Polish', 'Czech', 'Irish']
+
+def get_ensemble_predictions(names):
     """
-    Takes a list of names, prompts the LLM for each one, and returns a list
-    of predicted ethnicities from our fixed list of categories.
+    Gets predictions from all three models for a list of names.
+    Returns a list of dictionaries, where each dict has the predictions from all models for one name.
     """
     if not names:
         return []
 
-    predictions = []
+    # Get predictions from the fast classifiers first
+    baseline_preds = [p['label'] for p in _classifiers["baseline"](names)]
+    bert_preds = [p['label'] for p in _classifiers["bert"](names)]
+    
+    # Get predictions from the slower LLM one by one
+    llm_preds = []
     for name in names:
-        # --- Prompt Engineering ---
-        # We create a detailed instruction for the LLM for each name.
-        prompt = f"""
-        You are an expert linguist. Based on the full name, predict the most likely
-        linguistic origin or ethnicity from the following list: {", ".join(ETHNICITY_CATEGORIES)}.
-
-        The name is: "{name}"
-
-        Respond with only a single word from the list.
-        """
-
-        try:
-            # Generate the response from the LLM
-            response = _llm_classifier(prompt, max_length=10)
-            # The output is like [{'generated_text': 'English'}]. We extract the text.
-            generated_text = response[0]['generated_text'].strip()
-            
-            # To be safe, ensure the model's output is one of our categories.
-            # If not, we default to "Unknown".
-            if generated_text in ETHNICITY_CATEGORIES:
-                predictions.append(generated_text)
-            else:
-                predictions.append("Unknown")
-
-        except Exception as e:
-            print(f"Error processing name '{name}': {e}")
-            predictions.append("Error")
-            
-    return predictions
+        prompt = f"Predict the linguistic origin of the name '{name}' from this list: {', '.join(LLM_CATEGORIES)}. Respond with only one word from the list."
+        response = _classifiers["llm"](prompt, max_length=10)[0]['generated_text'].strip()
+        llm_preds.append(response if response in LLM_CATEGORIES else "Unknown")
+        
+    # Combine the results
+    combined_results = []
+    for i in range(len(names)):
+        combined_results.append({
+            "name": names[i],
+            "baseline_pred": baseline_preds[i],
+            "bert_pred": bert_preds[i],
+            "llm_pred": llm_preds[i]
+        })
+        
+    return combined_results

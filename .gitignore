@@ -1,0 +1,11 @@
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore generated cache files (these are encrypted but still shouldn't be in the repo)
+api_cache.json
+ai_cache.json
+
+# Ignore virtual environment folders if you create one locally
+venv/
+.venv/

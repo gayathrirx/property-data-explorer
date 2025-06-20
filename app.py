@@ -2,16 +2,73 @@
 
 import gradio as gr
 
-# Import the logic functions from our modules
+# Import the main processing functions from our ui_logic module
 from modules.ui_logic import process_property_detail_tab, process_zip_analysis_tab
 
-# --- BUILD THE GRADIO INTERFACE ---
+# --- The README content for our new "Home" tab ---
+# This multi-line string holds all the Markdown for the home page.
+# The image URLs point to the 'images' folder in your repository.
+home_page_content = """
+# 🏠 Property Data Explorer & AI Demographic Analyzer 🤖
+
+An interactive web application that transforms raw property data into actionable insights. This tool harnesses the power of the **ATTOM Data API** for real-time property records and leverages a **Google FLAN-T5 Large Language Model** from the Hugging Face Hub to perform demographic analysis.
+
+---
+
+### Application in Action
+
+| Detailed Property Lookup | Real-time Analysis | Demographic Visualization |
+| :---: | :---: | :---: |
+| ![Property Detail View](https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME/resolve/main/images/image1.png) | ![Analysis in Progress](https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME/resolve/main/images/image2.png) | ![Demographic Chart](https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME/resolve/main/images/image3.png) |
+
+---
+
+## ✨ Key Features
+
+This application offers two primary features, accessible through the tabs at the top:
+
+### 1. Detailed Property Lookup
+Instantly retrieve a comprehensive profile for any property in the United States. Simply enter a full address in the **"Property Detail Lookup"** tab to get a report including:
+- **Ownership & Location:** Current owner names, Parcel ID (APN), and subdivision details.
+- **Valuation & Tax:** The latest market value, assessed value, and annual tax information.
+- **Sale History:** The most recent sale price and date.
+- **Building Characteristics:** Property type, year built, living area, and bed/bath count.
+
+### 2. AI-Powered Demographic Analysis
+Uncover demographic trends within any ZIP code using the **"ZIP Code Demographic Analysis"** tab. This feature performs a complex, real-time analysis:
+1.  Fetches a sample of 100 Single Family Residences from the ATTOM API.
+2.  Retrieves the owner's full name for each property.
+3.  Uses a **Google FLAN-T5 Large Language Model** to predict the likely national origin of each owner's name.
+4.  Generates a dynamic, interactive pie chart visualizing the predicted demographic distribution.
+
+### ⚡️ Advanced Capabilities
+- **Efficient Caching:** Implements a persistent, encrypted, file-based cache for both API calls and AI predictions. Subsequent requests for the same data are nearly instantaneous.
+- **Real-time Feedback:** A dynamic progress bar and status messages keep the user informed during complex, multi-step analyses.
+- **Secure by Design:** All sensitive credentials are managed securely using Hugging Face Repository Secrets. Data at rest in the cache is encrypted.
+
+---
+
+## 🛠️ Technology Stack
+- **Frontend UI:** Gradio
+- **Backend Logic:** Python
+- **Data Source:** ATTOM Data Solutions API
+- **AI / Machine Learning:** Hugging Face `transformers` running `google/flan-t5-base`.
+- **Data Handling:** Pandas & Plotly Express
+- **Security:** `cryptography`
+"""
+
+
+# --- BUILD THE GRADIO INTERFACE with the new Home Tab ---
 with gr.Blocks(theme=gr.themes.Soft(), title="Property Explorer") as iface:
-    gr.Markdown("# 🏠 Property Data Explorer")
+    gr.Markdown("# Property Data Explorer")
     gr.Markdown("Powered by the **ATTOM Data API** and **Hugging Face AI**.")
 
     with gr.Tabs():
-        # --- TAB 1: PROPERTY DETAIL LOOKUP (Unchanged) ---
+        # --- TAB 1: NEW HOME / ABOUT PAGE ---
+        with gr.TabItem("About this App"):
+            gr.Markdown(home_page_content)
+
+        # --- TAB 2: PROPERTY DETAIL LOOKUP ---
         with gr.TabItem("Property Detail Lookup"):
             with gr.Row():
                 with gr.Column(scale=1):
@@ -29,16 +86,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Property Explorer") as iface:
                         with gr.TabItem("Full JSON Response"):
                             json_output1 = gr.JSON()
 
-        # --- TAB 2: ZIP CODE DEMOGRAPHIC ANALYSIS (UI is Simplified) ---
+        # --- TAB 3: ZIP CODE DEMOGRAPHIC ANALYSIS ---
         with gr.TabItem("ZIP Code Demographic Analysis"):
             gr.Markdown("## Analyze Demographics by ZIP Code")
             gr.Markdown("Enter a ZIP code. The app will fetch a sample of 100 Single Family Residences, find the owners, and use AI to analyze their likely national origin.")
             gr.Markdown("**⚠️ Ethical Disclaimer:** Predicting nationality from a name is an imprecise task. This AI model makes a probabilistic guess and can be wrong. It is for illustrative, analytical purposes only.", elem_classes="disclaimer")
-            
-            # --- UI CHANGE: Only a single input for the ZIP code ---
-            zip_input2 = gr.Textbox(label="Enter a ZIP Code", placeholder="e.g., 82009")
+            zip_input2 = gr.Textbox(label="Enter a ZIP Code", placeholder="e.g., 80212")
             btn2 = gr.Button("Analyze ZIP Code", variant="primary")
-            
             summary_output2 = gr.Textbox(label="Analysis Status", interactive=False)
             plot_output2 = gr.Plot()
             dataframe_output2 = gr.DataFrame(label="Sampled Data and Predictions (Name & Predicted Nationality Only)")
@@ -50,7 +104,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Property Explorer") as iface:
         outputs=[summary_output1, json_output1]
     )
 
-    # --- UI CHANGE: The click event now only uses the zip input ---
     btn2.click(
         fn=process_zip_analysis_tab,
         inputs=zip_input2,

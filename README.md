@@ -2,6 +2,7 @@
 title: Property Data Explorer & AI Demographic Analyzer
 emoji: 🏢
 short_description: 'An interactive web application that transforms raw property '
+sdk: gradio
 ---
 # 🏠 Property Data Explorer & AI Demographic Analyzer 🤖
 

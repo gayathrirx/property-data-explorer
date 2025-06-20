@@ -23,29 +23,36 @@ def process_property_detail_tab(street, city, state, zip_code):
     summary = f"""### Property Details for {address_info.get('oneLine', 'N/A')}\n---\n#### **Ownership & Location**\n**Owner(s):** {owner_str}\n**Parcel ID (APN):** {prop.get('identifier', {}).get('apn', 'N/A')}\n**Subdivision:** {prop.get('area', {}).get('subdName', 'N/A')}\n\n#### **Valuation & Tax**\n**Market Value:** {f'${market_value:,}' if market_value else 'N/A'}\n**Assessed Value:** {f'${assessed_value:,}' if assessed_value else 'N/A'}\n**Last Annual Tax:** {f'${tax_amount:,}' if tax_amount else 'N/A'} (Tax Year: {assessment_info.get('tax', {}).get('taxYear', 'N/A')})\n\n#### **Last Sale Information**\n**Sale Price:** {f'${sale_price:,}' if sale_price else 'N/A'}\n**Sale Date:** {sale_date if sale_date else 'N/A'}\n\n#### **Building Characteristics**\n**Property Type:** {summary_info.get('propClass', 'N/A')}\n**Year Built:** {year_built if year_built else 'N/A'}\n**Living Area:** {f'{living_sq_ft:,} sq ft' if living_sq_ft else 'N/A'}\n**Beds / Baths:** {f'{beds} Bed' if beds else 'N/A'} / {f'{baths} Bath' if baths else 'N/A'}"""
     return summary, data
 
-# --- LOGIC FOR THE SECOND UI TAB (Simplified for ZIP-only analysis) ---
+# --- LOGIC FOR THE SECOND UI TAB (Upgraded with a "Spinner" using 'yield') ---
 def process_zip_analysis_tab(zip_code, progress=gr.Progress()):
     if not zip_code:
         raise gr.Error("A ZIP code is required.")
 
-    # --- Step 1: Bulk fetch SFR addresses from the ZIP code ---
-    progress(0, desc="Fetching property list (sample of 100 SFRs)...")
-    address_list_data = get_addresses_by_zip(zip_code)
-    if not address_list_data or 'property' not in address_list_data:
-        return "Could not retrieve addresses for this ZIP code.", None, None
+    # --- STEP 1: THE "SPINNER" ---
+    # This 'yield' happens instantly when the button is clicked.
+    # It updates the status box and clears any old results from the plot and dataframe.
+    spinner_text = "Please wait... Waking up the hamsters! 🐹 (Free compute has its limits, this can take a minute.)"
+    yield spinner_text, None, None
 
-    # --- Step 2: Loop through the list to get owner names ---
+    # --- STEP 2: THE MAIN WORK (Progress bar appears here) ---
+    progress(0, desc="Fetching property list from ATTOM API...")
+    address_list_data = get_addresses_by_zip(zip_code)
+    
+    if not address_list_data or 'property' not in address_list_data:
+        yield "Could not retrieve any addresses for this ZIP code.", None, None
+        return # End the function here
+
     properties = address_list_data['property']
     total_to_process = len(properties)
     owner_names = []
     
     if total_to_process == 0:
-        return f"No Single Family Residences found in the first 100 properties for ZIP {zip_code}.", None, None
+        yield f"No Single Family Residences found in the first 100 properties for ZIP {zip_code}.", None, None
+        return
 
     for i, prop in enumerate(properties):
         progress((i / total_to_process) * 0.9, desc=f"Getting owner for property {i+1}/{total_to_process}...")
         addr = prop.get('address', {})
-        # Making a detail call for each property in the list
         detail_data = get_property_detail(addr.get('line1'), addr.get('locality'), addr.get('countrySubd'))
         if detail_data and 'property' in detail_data and detail_data['property']:
             owner_name = detail_data['property'][0].get('assessment', {}).get('owner', {}).get('owner1', {}).get('fullName')
@@ -53,15 +60,14 @@ def process_zip_analysis_tab(zip_code, progress=gr.Progress()):
                 owner_names.append(owner_name)
     
     if not owner_names:
-        return "Found properties, but could not retrieve any owner names.", None, None
+        yield "Found properties, but could not retrieve any owner names.", None, None
+        return
 
-    # --- Step 3: Run AI analysis ---
     progress(0.9, desc="Running AI analysis on names...")
     ethnicities = predict_ethnicity(owner_names)
     
     df = pd.DataFrame({"Owner Name": owner_names, "Predicted Nationality": ethnicities})
 
-    # --- Step 4: Create chart and return results ---
     progress(1, desc="Creating chart...")
     ethnicity_counts = df['Predicted Nationality'].value_counts().reset_index()
     ethnicity_counts.columns = ['Nationality', 'Count']
@@ -72,4 +78,7 @@ def process_zip_analysis_tab(zip_code, progress=gr.Progress()):
     fig.update_traces(textposition='inside', textinfo='percent+label')
 
     summary = f"Analysis complete. Found and analyzed {len(df)} property owners from the sample."
-    return summary, fig, df
+    
+    # --- STEP 3: THE FINAL RESULT ---
+    # The final 'yield' sends all the completed data back to the UI.
+    yield summary, fig, df
